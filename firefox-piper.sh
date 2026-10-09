@@ -4,19 +4,25 @@
 # Debian 13, replacing the robotic espeak-ng narration.
 #
 # The chain this wires up:
-#   firefox-esr  ->  speech-dispatcher  ->  sd_generic  ->  piper  ->  pw-play
+#   firefox-esr  ->  speech-dispatcher  ->  sd_generic  ->  piper  ->  pw-cat
 #
 # Everything is installed per-user: no files in /etc, and the only root access is
 # apt for the packages Debian already expects you to have.
 #
 # Usage:
-#   firefox-piper.sh                    interactive install
-#   firefox-piper.sh --install          install non-interactively
-#   firefox-piper.sh --install --voice bg_BG-dimitar-medium
+#   firefox-piper.sh --install          install (interactive voice menu)
+#   firefox-piper.sh --install --voice bg_BG-dimitar-medium   pick a voice directly
+#   firefox-piper.sh --install          non-interactively, using the default voice
 #   firefox-piper.sh --list-voices      voices already downloaded
 #   firefox-piper.sh --status           what is installed
 #   firefox-piper.sh --test             verify the chain works
 #   firefox-piper.sh --uninstall        remove and restore espeak-ng
+#   firefox-piper.sh --set-firefox-voice   point Firefox's Narrate at Piper
+#
+# Note on --set-firefox-voice: CLOSE FIREFOX FIRST. Firefox rewrites its profile
+# prefs from memory when it exits, so a preference change made while it is
+# running is silently discarded. The script refuses to edit rather than appear to
+# succeed and lose the change.
 
 set -uo pipefail
 
@@ -83,7 +89,22 @@ do_install() {
     restart_speech_dispatcher
 
     test_voice "$voice"
-    print_firefox_instructions "$voice"
+
+    # Piper being installed is not enough: Firefox still requests whatever
+    # speech-dispatcher voice it had before, so it would keep speaking through
+    # espeak-ng. Offer to repoint it now, rather than leaving the user with a
+    # working install that sounds unchanged.
+    log ""
+    info "pointing Firefox's Narrate at Piper"
+    local voice_set=no
+    if set_firefox_voice "$voice"; then
+        voice_set=yes
+    else
+        warn "could not update the Firefox voice automatically"
+        dim "close Firefox, then run: $0 --set-firefox-voice"
+    fi
+
+    print_firefox_instructions "$voice" "$voice_set"
 }
 
 # Which voice is currently configured, for --test.
@@ -93,7 +114,9 @@ configured_voice() {
 }
 
 main() {
-    local command="install" voice="" uninstall_args=()
+    # No arguments shows help rather than installing. Installing downloads ~60 MiB
+    # and rewrites the user's speech-dispatcher config, so it must be asked for.
+    local command="help" voice="" uninstall_args=()
 
     while [ $# -gt 0 ]; do
         case "$1" in
@@ -116,6 +139,9 @@ main() {
     done
 
     case "$command" in
+        help)
+            usage
+            ;;
         install)
             do_install "$voice"
             ;;
@@ -127,7 +153,7 @@ main() {
             local active
             active=$(configured_voice) || die "nothing configured yet; run: $0 --install"
             test_voice "$active"
-            print_firefox_instructions "$active"
+            print_firefox_instructions "$active" yes
             ;;
         set-voice)
             require_debian13

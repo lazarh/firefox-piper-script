@@ -110,7 +110,13 @@ set_firefox_voice() {
     fi
 
     if firefox_running; then
-        err "Firefox is running; close it first, then re-run: $0 --set-firefox-voice"
+        err "Firefox is running, so its preferences cannot be changed safely."
+        log ""
+        log "  Firefox rewrites its profile from memory when it exits, so a change"
+        log "  made now would be silently lost. Close Firefox completely, then run:"
+        log ""
+        log "      $0 --set-firefox-voice"
+        log ""
         return 1
     fi
 

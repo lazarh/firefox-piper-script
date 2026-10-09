@@ -41,7 +41,8 @@ test_voice() {
 
 # Print the manual Reader Mode check, plus what to do when it fails.
 print_firefox_instructions() {
-    local voice_key=$1
+    local voice_key=$1 voice_set="${2:-no}" lang_short
+    lang_short=$(voice_language "$(voices_index)" "$voice_key" | cut -d_ -f1)
 
     log ""
     info "try it in Firefox"
@@ -50,15 +51,29 @@ print_firefox_instructions() {
   1. Start or restart Firefox ESR.
   2. Open any article and press ${C_BLU}Ctrl+R${C_OFF} to enter Reader Mode
      (View -> Reader Mode if the shortcut is taken).
-  3. Press ${C_BLU}V${C_OFF} to start narration.
+  3. Press ${C_BLU}V${C_OFF} to start narration, or use the Listen button.
+EOF
+
+    if [ "$voice_set" = "no" ]; then
+        cat <<EOF
+
+  ${C_YLW}Firefox's Narrate voice was not switched, so it will still sound like
+  espeak-ng. Close Firefox completely, then run:${C_OFF}
+
+      ${C_BLU}$0 --set-firefox-voice${C_OFF}
+EOF
+    fi
+
+    cat <<EOF
 
   Narrated articles should now sound like Piper ($voice_key)
   rather than robotic espeak-ng.
 
 ${C_DIM}If narration is still robotic:${C_OFF}
-  * Confirm the module loaded:  spd-say -L | grep -i piper
+  * Check the voice is registered:  spd-say -L | grep $voice_key
+    ${C_DIM}(language must read "$lang_short", not the full locale)$C_OFF
   * Check the module log:       ${XDG_RUNTIME_DIR:-/run/user/\$(id -u)}/speech-dispatcher/log/piper.log
-  * Restart the daemon:         $0 --install --voice $voice_key
+  * Point Firefox at Piper:     $0 --set-firefox-voice   ${C_DIM}(close Firefox first)$C_OFF
   * Re-run:                     $0 --test
 
 EOF
