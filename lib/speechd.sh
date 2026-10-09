@@ -60,8 +60,12 @@ install_speak_wrapper() {
 
 write_module_config() {
     local voice_key=$1 play_cmd=$2 lang=$3
-    # sd_generic's GenericLanguage takes language / variant / charset. The variant
-    # slot wants the bare language subtag (bg, not bg_BG).
+    # Register the voice under the BARE language subtag, not the full locale.
+    #
+    # Firefox's Narrate UI filters voices with `v.lang.split("-")[0] == language`,
+    # so a voice registered as "bg_BG" never matches the page language "bg". The
+    # Listen button is hidden entirely when that filter yields nothing, which is
+    # why the voice must be "bg" to match what espeak-ng registers.
     local lang_short="${lang%%_*}"
 
     mkdir -p "$SPD_MODULES_DIR"
@@ -104,7 +108,7 @@ GenericRateAdd 1
 GenericPitchMultiply 1
 GenericVolumeMultiply 1
 
-AddVoice "$lang" "FEMALE1" "$voice_key"
+AddVoice "$lang_short" "FEMALE1" "$voice_key"
 DefaultVoice "$voice_key"
 CONF
 

@@ -32,6 +32,8 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 . "$SCRIPT_DIR/lib/speechd.sh"
 # shellcheck source=lib/verify.sh
 . "$SCRIPT_DIR/lib/verify.sh"
+# shellcheck source=lib/firefox.sh
+. "$SCRIPT_DIR/lib/firefox.sh"
 # shellcheck source=lib/uninstall.sh
 . "$SCRIPT_DIR/lib/uninstall.sh"
 
@@ -98,6 +100,7 @@ main() {
             --install)   command="install"; shift ;;
             --uninstall) command="uninstall"; shift ;;
             --test)      command="test"; shift ;;
+            --set-firefox-voice) command="set-voice"; shift ;;
             --status)    command="status"; shift ;;
             --list-voices) command="list-voices"; shift ;;
             --voice)
@@ -125,6 +128,12 @@ main() {
             active=$(configured_voice) || die "nothing configured yet; run: $0 --install"
             test_voice "$active"
             print_firefox_instructions "$active"
+            ;;
+        set-voice)
+            require_debian13
+            local target
+            target=$(configured_voice) || die "nothing configured yet; run: $0 --install"
+            set_firefox_voice "$target"
             ;;
         status)
             show_status
