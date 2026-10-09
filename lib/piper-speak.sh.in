@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Piper speech-dispatcher bridge.
+#
+# speech-dispatcher's sd_generic module pipes text to a synthesis command and
+# plays the result. Rather than embed a fragile nested-quote pipeline in the
+# module config, this thin wrapper owns the Piper invocation; the module config
+# just feeds it text on stdin and sends raw PCM to $PLAY_COMMAND.
+#
+# Reads text on stdin, writes raw s16le PCM at the model's sample rate to stdout.
+# Any Piper diagnostic goes to stderr so it never corrupts the audio stream.
+
+set -uo pipefail
+
+MODEL=""
+RATE="0"
+
+usage() {
+    cat >&2 <<'USAGE'
+usage: piper-speak --model <voice.onnx> [--rate <-100..100>]
+Reads text on stdin, writes raw s16le audio to stdout.
+USAGE
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --model) MODEL="${2:-}"; shift 2 ;;
+        --rate)  RATE="${2:-0}"; shift 2 ;;
+        --help|-h) usage; exit 0 ;;
+        *) printf 'piper-speak: unknown argument: %s\n' "$1" >&2; exit 2 ;;
+    esac
+done
+
+[ -n "$MODEL" ] || { printf 'piper-speak: --model is required\n' >&2; exit 2; }
+[ -s "$MODEL" ] || { printf 'piper-speak: voice model missing: %s\n' "$MODEL" >&2; exit 2; }
+
+# Map speech-dispatcher's RATE (-100..100) onto piper's length_scale, where a
+# larger value means slower speech. Clamped so the output stays intelligible.
+length_scale=$(awk -v r="${RATE:-0}" 'BEGIN {
+    s = 1 + (r / 100) * -0.5
+    if (s < 0.1) s = 0.1
+    if (s > 3.0) s = 3.0
+    printf "%.3f", s
+}')
+
+export LD_LIBRARY_PATH="__PIPER_LIB__${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+
+exec "__PIPER_BIN__" \
+    --model "$MODEL" \
+    --length_scale "$length_scale" \
+    --sentence_silence 0 \
+    --output-raw \
+    2>/dev/null
